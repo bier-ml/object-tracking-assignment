@@ -3,10 +3,12 @@ from track_3 import track_data, country_balls_amount
 import asyncio
 import glob
 
-app = FastAPI(title='Tracker assignment')
-imgs = glob.glob('imgs/*')
-country_balls = [{'cb_id': x, 'img': imgs[x % len(imgs)]} for x in range(country_balls_amount)]
-print('Started')
+app = FastAPI(title="Tracker assignment")
+imgs = glob.glob("imgs/*")
+country_balls = [
+    {"cb_id": x, "img": imgs[x % len(imgs)]} for x in range(country_balls_amount)
+]
+print("Started")
 
 
 def tracker_soft(el):
@@ -53,7 +55,7 @@ def tracker_strong(el):
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    print('Accepting client connection...')
+    print("Accepting client connection...")
     await websocket.accept()
     # отправка служебной информации для инициализации объектов
     # класса CountryBall на фронте
@@ -66,4 +68,4 @@ async def websocket_endpoint(websocket: WebSocket):
         # el = tracker_strong(el)
         # отправка информации по фрейму
         await websocket.send_json(el)
-    print('Bye..')
+    print("Bye..")
