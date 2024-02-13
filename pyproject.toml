@@ -6,7 +6,7 @@ authors = ["konstantgr <konstantin.grotov@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.10.6"
 fastapi = "0.87.0"
 matplotlib = "^3.8.2"
 numpy = "^1.26.4"
