@@ -1,6 +1,6 @@
 import itertools
 import json
-from typing import Any, Iterable
+from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -24,7 +24,7 @@ def create_report(df: pd.DataFrame, categories: set[str], metrics_list: list[str
         for i, metric_name in enumerate(metrics_list):
             df.boxplot(by=category, column=[metric_name], ax=ax[i])
         fig.tight_layout()
-        figure_path = f"metrics_figures/boxplot_{category}.png"
+        figure_path = f"metrics_figures/boxplot_{category}_{report_name_suffix}.png"
         fig.savefig(figure_path)
         plt.show()
 
@@ -32,19 +32,13 @@ def create_report(df: pd.DataFrame, categories: set[str], metrics_list: list[str
             md_file.write(f"![Boxplot]({figure_path})\n")
 
 
-class Monitor(object):
+class Monitor:
     def __init__(self):
         self.available_metrics = {
             "Average track coverage": self.average_track_coverage,
             "Mismatch ratio": self.mismatch_ratio,
         }
         self.tracks = {}
-
-    def update(self, frame: dict[str, Any]) -> None:
-        for detection in filter(lambda d: d["bounding_box"], frame["data"]):
-            if detection["cb_id"] not in self.tracks:
-                self.tracks[detection["cb_id"]] = []
-            self.tracks[detection["cb_id"]].append(detection["track_id"])
 
     def calculate_track_metrics(self) -> dict[str, float]:
         return {metric_name: fun() for metric_name, fun in self.available_metrics.items()}
@@ -70,6 +64,12 @@ class Monitor(object):
         track_array = np.array(track)
         mismatches = np.count_nonzero(track_array[1:] != track_array[:-1])
         return mismatches
+
+    def update(self, frame) -> None:
+        for detection in filter(lambda d: d["bounding_box"], frame["data"]):
+            if detection["cb_id"] not in self.tracks:
+                self.tracks[detection["cb_id"]] = []
+            self.tracks[detection["cb_id"]].append(detection["track_id"])
 
 
 def soft_tracker_loop(track_data: Iterable, metrics_monitor: Monitor) -> Monitor:
@@ -103,14 +103,14 @@ if __name__ == "__main__":
     random_range_list = [0, 10]
     skip_percent_list = [0.0, 0.05, 0.25, 0.5]
 
-    # tracks_amount_list = [5, 10]
-    # random_range_list = [0, 10]
-    # skip_percent_list = [0.0, 0.05]
+    tracks_amount_list = [5, 10]
+    random_range_list = [0, 10]
+    skip_percent_list = [0.0, 0.05]
 
     categorical_columns = {"tracks_amount", "random_range", "bb_skip_percent"}
 
     tracker_type = "soft"
-    # tracker_type = "strong"
+    tracker_type = "strong"
 
     data = []
     for ta, rr, sp in tqdm(itertools.product(tracks_amount_list, random_range_list, skip_percent_list)):

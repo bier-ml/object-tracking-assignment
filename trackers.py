@@ -5,7 +5,7 @@ from deep_sort_realtime.deepsort_tracker import DeepSort
 deepsort_tracker = DeepSort(max_age=5)
 
 
-def get_centroid(bbox: list):
+def get_centroid(bbox: list) -> np.ndarray:
     bbox = np.array(bbox)
     return np.mean(bbox.reshape(2, 2), axis=0).astype(int)
 
