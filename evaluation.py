@@ -17,7 +17,7 @@ def create_report(df: pd.DataFrame, categories: set[str], metrics_list: list[str
 
     md_file_path = "metrics_report.md"
     with open("metrics_report.md", "w") as f:
-        f.write(df.to_markdown() + "\n")
+        f.write(df.to_markdown() + "\n\n")
 
     for category in categories:
         fig, ax = plt.subplots(1, len(metrics_list), figsize=(6, 3))
