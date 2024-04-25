@@ -7,7 +7,7 @@ from starlette.responses import FileResponse
 
 from evaluation import Monitor
 from test_tracks.track_3 import country_balls_amount, track_data
-from trackers import tracker_soft
+from trackers import tracker_soft, tracker_strong
 from utils import NpEncoder
 
 app = FastAPI(title="Tracker assignment")
@@ -40,10 +40,11 @@ async def websocket_endpoint(websocket: WebSocket):
     for el in track_data:
         await asyncio.sleep(0.1)
 
-        # Part 1
+        # Soft tracker
         if el["frame_id"] == 1:
             id_info = {}
             num = 0
+
         try:
             el_soft, id_info, num = tracker_soft(el, id_info, num)
             el_soft = json.loads(json.dumps(el_soft, cls=NpEncoder))
@@ -51,6 +52,12 @@ async def websocket_endpoint(websocket: WebSocket):
             metrics_monitor.update(el_soft)
         except IndexError:
             continue
+
+        # # Strong tracker
+        # el_strong = tracker_strong(el)
+        # el_strong = json.loads(json.dumps(el_strong, cls=NpEncoder))
+        # await websocket.send_json(el_strong)
+        # metrics_monitor.update(el_strong)
 
     print(metrics_monitor.calculate_track_metrics())
     print("Bye..")

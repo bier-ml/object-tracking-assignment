@@ -1,6 +1,6 @@
 import itertools
 import json
-from typing import Any
+from typing import Any, Iterable
 
 import numpy as np
 import pandas as pd
@@ -8,15 +8,15 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from create_track import create_track
-from trackers import tracker_soft
+from trackers import tracker_soft, tracker_strong
 from utils import NpEncoder
 
 
-def create_report(df: pd.DataFrame, categories: set[str], metrics_list: list[str]):
+def create_report(df: pd.DataFrame, categories: set[str], metrics_list: list[str], report_name_suffix: str = ""):
     print(df.to_markdown())
 
-    md_file_path = "metrics_report.md"
-    with open("metrics_report.md", "w") as f:
+    md_file_path = f"metrics_report_{report_name_suffix}.md" if report_name_suffix else "metrics_report.md"
+    with open(md_file_path, "w") as f:
         f.write(df.to_markdown() + "\n\n")
 
     for category in categories:
@@ -72,29 +72,56 @@ class Monitor(object):
         return mismatches
 
 
+def soft_tracker_loop(track_data: Iterable, metrics_monitor: Monitor) -> Monitor:
+    for el in track_data:
+        if el["frame_id"] == 1:
+            id_info = {}
+            num = 0
+
+        try:
+            el_soft, id_info, num = tracker_soft(el, id_info, num)
+            el_soft = json.loads(json.dumps(el_soft, cls=NpEncoder))
+            metrics_monitor.update(el_soft)
+        except IndexError:
+            continue
+    return metrics_monitor
+
+
+def strong_tracker_loop(track_data: Iterable, metrics_monitor: Monitor) -> Monitor:
+    for el in track_data:
+        try:
+            el_strong = tracker_strong(el)
+            el_strong = json.loads(json.dumps(el_strong, cls=NpEncoder))
+            metrics_monitor.update(el_strong)
+        except Exception:
+            continue
+    return metrics_monitor
+
+
 if __name__ == "__main__":
     tracks_amount_list = [5, 10, 20]
     random_range_list = [0, 10]
     skip_percent_list = [0.0, 0.05, 0.25, 0.5]
 
+    # tracks_amount_list = [5, 10]
+    # random_range_list = [0, 10]
+    # skip_percent_list = [0.0, 0.05]
+
     categorical_columns = {"tracks_amount", "random_range", "bb_skip_percent"}
+
+    tracker_type = "soft"
+    # tracker_type = "strong"
 
     data = []
     for ta, rr, sp in tqdm(itertools.product(tracks_amount_list, random_range_list, skip_percent_list)):
         _, track_data = create_track(tracks_amount=ta, random_range=rr, bb_skip_percent=sp)
 
         metrics_monitor = Monitor()
-        for el in track_data:
-            if el["frame_id"] == 1:
-                id_info = {}
-                num = 0
-
-            try:
-                el_soft, id_info, num = tracker_soft(el, id_info, num)
-                el_soft = json.loads(json.dumps(el_soft, cls=NpEncoder))
-                metrics_monitor.update(el_soft)
-            except IndexError:
-                continue
+        match tracker_type:
+            case "soft":
+                metrics_monitor = soft_tracker_loop(track_data, metrics_monitor)
+            case "strong":
+                metrics_monitor = strong_tracker_loop(track_data, metrics_monitor)
 
         series = pd.Series(
             {
@@ -106,6 +133,6 @@ if __name__ == "__main__":
         )
         data.append(series)
 
-    df = pd.DataFrame(data)
+    df = pd.DataFrame(data).round(3)
     metrics_list = list(metrics_monitor.available_metrics.keys())
-    create_report(df, categorical_columns, metrics_list)
+    create_report(df, categorical_columns, metrics_list, tracker_type)
