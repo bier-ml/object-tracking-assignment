@@ -1,71 +1,56 @@
-from fastapi import FastAPI, WebSocket
-from track_3 import track_data, country_balls_amount
 import asyncio
 import glob
+import json
+
+from fastapi import FastAPI, WebSocket
+from starlette.responses import FileResponse
+
+from evaluation import Monitor
+from test_tracks.track_3 import country_balls_amount, track_data
+from trackers import tracker_soft
+from utils import NpEncoder
 
 app = FastAPI(title="Tracker assignment")
-imgs = glob.glob("imgs/*")
-country_balls = [
-    {"cb_id": x, "img": imgs[x % len(imgs)]} for x in range(country_balls_amount)
-]
+images_list = glob.glob("imgs/*")
+country_balls = [{"cb_id": x, "img": images_list[x % len(images_list)]} for x in range(country_balls_amount)]
 print("Started")
 
 
-def tracker_soft(el):
-    """
-    Необходимо изменить у каждого словаря в списке значение поля 'track_id' так,
-    чтобы как можно более длительный период времени 'track_id' соответствовал
-    одному и тому же кантри болу.
-
-    Исходные данные: координаты рамки объектов
-
-    Ограничения:
-    - необходимо использовать как можно меньше ресурсов (представьте, что
-    вы используете embedded устройство, например Raspberri Pi 2/3).
-    -значение по ключу 'cb_id' является служебным, служит для подсчета метрик качества
-    вашего трекера, использовать его в алгоритме трекера запрещено
-    - запрещается присваивать один и тот же track_id разным объектам на одном фрейме
-    """
-    return el
+@app.get("/")
+async def get_index():
+    return FileResponse("index.html")
 
 
-def tracker_strong(el):
-    """
-    Необходимо изменить у каждого словаря в списке значение поля 'track_id' так,
-    чтобы как можно более длительный период времени 'track_id' соответствовал
-    одному и тому же кантри болу.
-
-    Исходные данные: координаты рамки объектов, скриншоты прогона
-
-    Ограничения:
-    - вы можете использовать любые доступные подходы, за исключением
-    откровенно читерных, как например захардкодить заранее правильные значения
-    'track_id' и т.п.
-    - значение по ключу 'cb_id' является служебным, служит для подсчета метрик качества
-    вашего трекера, использовать его в алгоритме трекера запрещено
-    - запрещается присваивать один и тот же track_id разным объектам на одном фрейме
-
-    P.S.: если вам нужны сами фреймы, измените в index.html значение make_screenshot
-    на true для первого прогона, на повторном прогоне можете читать фреймы из папки
-    и по координатам вырезать необходимые регионы.
-    TODO: Ужасный костыль, на следующий поток поправить
-    """
-    return el
+@app.get("/imgs/{image_path:path}")
+async def get_image(image_path: str):
+    image_file_path = f"imgs/{image_path}"
+    return FileResponse(image_file_path)
 
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     print("Accepting client connection...")
     await websocket.accept()
+
     # отправка служебной информации для инициализации объектов
     # класса CountryBall на фронте
     await websocket.send_text(str(country_balls))
+
+    metrics_monitor = Monitor()
     for el in track_data:
-        await asyncio.sleep(0.5)
-        # TODO: part 1
-        el = tracker_soft(el)
-        # TODO: part 2
-        # el = tracker_strong(el)
-        # отправка информации по фрейму
-        await websocket.send_json(el)
+        await asyncio.sleep(0.1)
+
+        # Part 1
+        if el["frame_id"] == 1:
+            id_info = {}
+            num = 0
+        try:
+            el_soft, id_info, num = tracker_soft(el, id_info, num)
+            el_soft = json.loads(json.dumps(el_soft, cls=NpEncoder))
+            await websocket.send_json(el_soft)
+            metrics_monitor.update(el_soft)
+        except IndexError:
+            continue
+
+    print(metrics_monitor.calculate_track_metrics())
     print("Bye..")
