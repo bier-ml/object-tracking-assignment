@@ -20,7 +20,7 @@ def create_report(df: pd.DataFrame, categories: set[str], metrics_list: list[str
         f.write(df.to_markdown() + "\n\n")
 
     for category in categories:
-        fig, ax = plt.subplots(1, len(metrics_list), figsize=(6, 3))
+        fig, ax = plt.subplots(1, len(metrics_list), figsize=(3 * len(metrics_list), 3))
         for i, metric_name in enumerate(metrics_list):
             df.boxplot(by=category, column=[metric_name], ax=ax[i])
         fig.tight_layout()
@@ -35,27 +35,37 @@ def create_report(df: pd.DataFrame, categories: set[str], metrics_list: list[str
 class Monitor:
     def __init__(self):
         self.available_metrics = {
-            "Average track coverage": self.average_track_coverage,
             "Mismatch ratio": self.mismatch_ratio,
+            "Track fragmentation": self.track_fragmentation,
+            "Track purity": self.track_purity,
+            "Average track length": self.average_track_length,
         }
         self.tracks = {}
 
+    def _preprocess_tracks(self):
+        for key, track in self.tracks.items():
+            self.tracks[key] = np.array(track).astype(int)
+
     def calculate_track_metrics(self) -> dict[str, float]:
+        self._preprocess_tracks()
         return {metric_name: fun() for metric_name, fun in self.available_metrics.items()}
 
-    def average_track_coverage(self) -> float:
-        return np.mean([self._get_coverage(track) for track in self.tracks.values()])
+    def track_fragmentation(self) -> float:
+        fragmentation_counts = [self._get_fragmentations(track) for track in self.tracks.values()]
+        return np.mean(fragmentation_counts)
+
+    def track_purity(self) -> float:
+        purities = [self._get_purity(track) for track in self.tracks.values()]
+        return np.mean(purities)
+
+    def average_track_length(self) -> float:
+        lengths = [len(track) for track in self.tracks.values()]
+        return np.mean(lengths) if lengths else 0
 
     def mismatch_ratio(self) -> float:
         errors = np.sum([self._get_mismatch_errors(track) for track in self.tracks.values()])
         detections = np.sum([len(track) for track in self.tracks.values()])
         return 1 - (errors / detections)
-
-    @staticmethod
-    def _get_coverage(track: list[int]) -> float:
-        values, counts = np.unique(track, return_counts=True)
-        max_count = counts.max()
-        return max_count / len(track)
 
     @staticmethod
     def _get_mismatch_errors(track: list[int]) -> int:
@@ -64,6 +74,15 @@ class Monitor:
         track_array = np.array(track)
         mismatches = np.count_nonzero(track_array[1:] != track_array[:-1])
         return mismatches
+
+    @staticmethod
+    def _get_fragmentations(track: list[int]) -> int:
+        return np.count_nonzero(np.diff(track) != 0)
+
+    @staticmethod
+    def _get_purity(track: list[int]) -> float:
+        most_common_id_count = np.max(np.bincount(track))
+        return most_common_id_count / len(track)
 
     def update(self, frame) -> None:
         for detection in filter(lambda d: d["bounding_box"], frame["data"]):
